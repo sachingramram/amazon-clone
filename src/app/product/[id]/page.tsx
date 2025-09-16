@@ -1,17 +1,20 @@
 import Image from "next/image";
+import { notFound } from "next/navigation";
 import { dbConnect } from "@/lib/mongoose";
 import Product from "@/models/Product";
-import type { ProductDoc } from "@/models/Product"; // ← use your model's type
-import { notFound } from "next/navigation";
+import type { ProductDoc } from "@/models/Product";
 import AddToCart from "./AddToCart";
 
-type Props = { params: { id: string } };
+type ProductPageProps = {
+  params: Promise<{ id: string }>; // Next 15: params/searchParams are Promises
+};
 
-export default async function ProductPage({ params }: Props) {
+export default async function ProductPage({ params }: ProductPageProps) {
+  const { id } = await params;
+
   await dbConnect();
 
-  // Tell TS what we're expecting back from Mongoose
-  const product = (await Product.findById(params.id).lean().exec()) as ProductDoc | null;
+  const product = (await Product.findById(id).lean().exec()) as ProductDoc | null;
   if (!product) return notFound();
 
   return (
@@ -30,12 +33,16 @@ export default async function ProductPage({ params }: Props) {
 
       <div>
         <h1 className="text-2xl font-semibold">{product.title}</h1>
-        {product.description ? (
-          <p className="text-sm text-gray-600 mt-2">{product.description}</p>
-        ) : null}
-        <div className="text-2xl font-bold mt-4">₹{(product.price / 100).toFixed(2)}</div>
 
-        {/* pass a plain object to the client component */}
+        {product.description && (
+          <p className="text-sm text-gray-600 mt-2">{product.description}</p>
+        )}
+
+        <div className="text-2xl font-bold mt-4">
+          ₹{(product.price / 100).toFixed(2)}
+        </div>
+
+        {/* pass a plain object across the server/client boundary */}
         <AddToCart product={JSON.parse(JSON.stringify(product))} />
       </div>
     </div>

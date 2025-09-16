@@ -6,14 +6,16 @@ import Pagination from "@/components/ui/Pagination";
 import { dbConnect } from "@/lib/mongoose";
 import Product from "@/models/Product";
 
-type Props = {
-  params: { category: string };
-  searchParams: { [key: string]: string | string[] | undefined };
-};
-
 export const dynamic = "force-dynamic";
 
-const sortMap: Record<string, any> = {
+type CategoryPageProps = {
+  params: Promise<{ category: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+};
+
+type SortSpec = Record<string, 1 | -1>;
+
+const sortMap: Record<string, SortSpec> = {
   "price-asc": { price: 1 },
   "price-desc": { price: -1 },
   rating: { "rating.rate": -1 },
@@ -21,28 +23,28 @@ const sortMap: Record<string, any> = {
   best: { "rating.count": -1, "rating.rate": -1 },
 };
 
-export default async function CategoryPage({ params, searchParams }: Props) {
+export default async function CategoryPage({ params, searchParams }: CategoryPageProps) {
+  const { category } = await params;
+  const sp = await searchParams;
+
   await dbConnect();
 
-  const cat = (params.category || "all").toLowerCase();
-
+  const cat = (category || "all").toLowerCase();
   const perPage = 24;
-  const page = Math.max(1, Number(searchParams.page || 1));
+  const page = Math.max(1, Number(sp.page || 1));
   const skip = (page - 1) * perPage;
 
-  // Build filters from query
-  const filters: any = {};
+  // ---- Filters from query ----
+  const filters: Record<string, unknown> = {};
   if (cat !== "all" && cat !== "best-sellers") {
     filters.category = new RegExp(`^${cat}$`, "i");
   }
 
-  // Helpers
   const asList = (key: string) =>
-    (typeof searchParams[key] === "string" ? (searchParams[key] as string) : "")
+    (typeof sp[key] === "string" ? (sp[key] as string) : "")
       .split(",")
       .filter(Boolean);
 
-  // Multi-selects
   const brands = asList("brand");
   if (brands.length) filters.brand = { $in: brands };
 
@@ -52,41 +54,39 @@ export default async function CategoryPage({ params, searchParams }: Props) {
   const sizes = asList("size");
   if (sizes.length) filters.sizes = { $in: sizes };
 
-  // Scalars
-  const rating = Number(searchParams.rating || 0);
+  const rating = Number(sp.rating || 0);
   if (rating) filters["rating.rate"] = { $gte: rating };
 
-  const prime = searchParams.prime === "1";
+  const prime = sp.prime === "1";
   if (prime) filters.primeEligible = true;
 
-  const deals = Number(searchParams.deals || 0);
+  const deals = Number(sp.deals || 0);
   if (deals) filters.discountPercent = { $gte: deals };
 
-  // Price (Rupees → minor units)
-  const min = Number(searchParams.min || 0);
-  const max = Number(searchParams.max || 0);
+  const min = Number(sp.min || 0);
+  const max = Number(sp.max || 0);
   if (min || max) {
-    filters.price = {};
-    if (min) filters.price.$gte = min * 100;
-    if (max) filters.price.$lte = max * 100;
+    const p: Record<string, number> = {};
+    if (min) p.$gte = min * 100;
+    if (max) p.$lte = max * 100;
+    filters.price = p;
   }
 
-  // Sorting (special-case best-sellers default)
   const sortKey =
-    typeof searchParams.sort === "string"
-      ? searchParams.sort
+    typeof sp.sort === "string"
+      ? sp.sort
       : cat === "best-sellers"
       ? "best"
       : "relevance";
-  const sort = sortMap[sortKey] || { createdAt: -1 };
+  const sort: SortSpec = sortMap[sortKey] || { createdAt: -1 };
 
-  // Query + Count
+  // ---- Query + Count ----
   const [products, total] = await Promise.all([
     Product.find(filters).sort(sort).skip(skip).limit(perPage).lean(),
     Product.countDocuments(filters),
   ]);
 
-  // Facets based on category (broad like Amazon)
+  // ---- Facets (broad, by category) ----
   const baseMatch =
     cat === "all" || cat === "best-sellers"
       ? {}
@@ -121,7 +121,7 @@ export default async function CategoryPage({ params, searchParams }: Props) {
       </div>
 
       <div className="grid grid-cols-12 gap-6">
-        {/* LEFT: Filters (drawer on mobile + static on desktop) */}
+        {/* LEFT */}
         <div className="col-span-12 md:col-span-3 space-y-4">
           <FiltersDrawer facets={facets} />
           <div className="hidden md:block">
@@ -129,7 +129,7 @@ export default async function CategoryPage({ params, searchParams }: Props) {
           </div>
         </div>
 
-        {/* RIGHT: Results */}
+        {/* RIGHT */}
         <div className="col-span-12 md:col-span-9 space-y-3">
           <SortBar total={total} />
           <ProductGrid products={JSON.parse(JSON.stringify(products))} />

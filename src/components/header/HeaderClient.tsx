@@ -6,11 +6,25 @@ import { Menu, X } from "lucide-react";
 import { useState } from "react";
 import SearchBar from "./SearchBar";
 import CartButton from "./CartButton";
+import { signIn, signOut } from "next-auth/react";
 
 type UserLite = { name?: string | null; image?: string | null } | null;
 
 export default function HeaderClient({ user }: { user: UserLite }) {
   const [open, setOpen] = useState(false);
+
+  const doSignIn = async () => {
+    // close drawer first (mobile), then kick off OAuth
+    setOpen(false);
+    // if you only use Google:
+    await signIn("google");
+    // if you have multiple providers, use: await signIn();
+  };
+
+  const doSignOut = async () => {
+    setOpen(false);
+    await signOut();
+  };
 
   return (
     <header className="bg-topbar text-white">
@@ -41,24 +55,30 @@ export default function HeaderClient({ user }: { user: UserLite }) {
           <CartButton />
 
           {user ? (
-            <form action="/api/auth/signout" method="post">
-              <button className="flex items-center gap-2 text-sm hover:opacity-90">
-                {user.image && (
-                  <Image
-                    src={user.image}
-                    alt="me"
-                    width={24}
-                    height={24}
-                    className="rounded-full"
-                  />
-                )}
-                <span>Sign out</span>
-              </button>
-            </form>
+            <button
+              type="button"
+              className="flex items-center gap-2 text-sm hover:opacity-90"
+              onClick={doSignOut}
+            >
+              {user.image && (
+                <Image
+                  src={user.image}
+                  alt="me"
+                  width={24}
+                  height={24}
+                  className="rounded-full"
+                />
+              )}
+              <span>Sign out</span>
+            </button>
           ) : (
-            <form action="/api/auth/signin" method="post">
-              <button className="text-sm hover:opacity-90">Sign in</button>
-            </form>
+            <button
+              type="button"
+              className="text-sm hover:opacity-90"
+              onClick={doSignIn}
+            >
+              Sign in
+            </button>
           )}
         </nav>
 
@@ -92,9 +112,7 @@ export default function HeaderClient({ user }: { user: UserLite }) {
             onClick={() => setOpen(false)}
             aria-hidden="true"
           />
-          <div
-            className="fixed inset-y-0 left-0 w-72 max-w-[85vw] bg-white text-gray-900 z-50 shadow-xl overflow-auto animate-slide-in"
-          >
+          <div className="fixed inset-y-0 left-0 w-72 max-w-[85vw] bg-white text-gray-900 z-50 shadow-xl overflow-auto animate-slide-in">
             <div className="flex items-center justify-between p-4 border-b">
               <div className="font-semibold">
                 {user?.name ? `Hello, ${user.name.split(" ")[0]}` : "Welcome"}
@@ -121,18 +139,23 @@ export default function HeaderClient({ user }: { user: UserLite }) {
                 Returns &amp; Orders
               </Link>
 
+              {/* Auth actions inside drawer */}
               {user ? (
-                <form action="/api/auth/signout" method="post" className="px-3 py-2">
-                  <button className="w-full text-left px-3 py-2 rounded-md hover:bg-gray-100" onClick={() => setOpen(false)}>
-                    Sign out
-                  </button>
-                </form>
+                <button
+                  type="button"
+                  className="w-full text-left px-3 py-2 rounded-md hover:bg-gray-100"
+                  onClick={doSignOut}
+                >
+                  Sign out
+                </button>
               ) : (
-                <form action="/api/auth/signin" method="post" className="px-3 py-2">
-                  <button className="w-full text-left px-3 py-2 rounded-md hover:bg-gray-100" onClick={() => setOpen(false)}>
-                    Sign in
-                  </button>
-                </form>
+                <button
+                  type="button"
+                  className="w-full text-left px-3 py-2 rounded-md hover:bg-gray-100"
+                  onClick={doSignIn}
+                >
+                  Sign in
+                </button>
               )}
             </nav>
           </div>
